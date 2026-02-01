@@ -4,11 +4,10 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes, filters
 )
 from telegram.request import HTTPXRequest
-import sqlite3, uuid, asyncio
+import os, sqlite3, uuid, asyncio
 
 # ================= CONFIG =================
 
-import os
 TOKEN = os.getenv("8105577463:AAH9FmxO23xX39MsQmSfueq38CEdCB7F9qk")
 BOT_USERNAME = "hcjvkvkguf_bot"
 
@@ -221,3 +220,4 @@ app.add_handler(MessageHandler(filters.ALL, handle_file))
 
 print("Bot running...")
 app.run_polling()
+
