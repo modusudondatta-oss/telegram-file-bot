@@ -8,7 +8,7 @@ import os, sqlite3, uuid, asyncio
 
 # ================= CONFIG =================
 
-TOKEN = os.getenv("8105577463:AAH9FmxO23xX39MsQmSfueq38CEdCB7F9qk")
+TOKEN = os.getenv("BOT_TOKEN")
 BOT_USERNAME = "hcjvkvkguf_bot"
 
 ALLOWED_UPLOADERS = [8295342154, 7025490921]
@@ -220,4 +220,5 @@ app.add_handler(MessageHandler(filters.ALL, handle_file))
 
 print("Bot running...")
 app.run_polling()
+
 
