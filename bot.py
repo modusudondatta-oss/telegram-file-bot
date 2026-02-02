@@ -144,6 +144,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ You are not allowed to view stats.")
         return
 
+    # Overall stats
     cur.execute("SELECT COUNT(DISTINCT batch_id) FROM batches")
     total_links = cur.fetchone()[0]
 
@@ -153,14 +154,37 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur.execute("SELECT SUM(downloads) FROM stats")
     total_downloads = cur.fetchone()[0] or 0
 
-    await update.message.reply_text(
+    text = (
         "📊 **Bot Statistics**\n\n"
         f"🔗 Total links: {total_links}\n"
         f"📁 Total files: {total_files}\n"
-        f"⬇️ Total downloads: {total_downloads}\n"
-        f"👤 Uploaders: {len(ALLOWED_UPLOADERS)}",
-        parse_mode="Markdown"
+        f"⬇️ Total downloads: {total_downloads}\n\n"
+        "— **Per Link** —\n"
     )
+
+    # Per-link stats
+    cur.execute("""
+        SELECT s.batch_id,
+               s.downloads,
+               COUNT(b.channel_msg_id) as file_count
+        FROM stats s
+        LEFT JOIN batches b ON s.batch_id = b.batch_id
+        GROUP BY s.batch_id
+        ORDER BY s.downloads DESC
+    """)
+    rows = cur.fetchall()
+
+    if not rows:
+        text += "No downloads yet."
+    else:
+        for batch_id, downloads, file_count in rows:
+            text += (
+                f"\n🔗 `{batch_id}`\n"
+                f"📁 Files: {file_count}\n"
+                f"⬇️ Downloads: {downloads}\n"
+            )
+
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 # ================= CALLBACKS =================
 
@@ -247,3 +271,4 @@ app.add_handler(MessageHandler(filters.ALL, handle_file))
 
 print("Bot running...")
 app.run_polling()
+
