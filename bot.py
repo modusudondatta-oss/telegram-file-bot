@@ -266,10 +266,10 @@ app.add_handler(CommandHandler("stats", stats))
 app.add_handler(CallbackQueryHandler(callbacks))
 app.add_handler(
     MessageHandler(
-        filters.Document | filters.Video | filters.Audio | filters.Photo,
+        filters.DOCUMENT | filters.VIDEO | filters.AUDIO | filters.PHOTO,
         handle_file
     )
 )
-
 print("Bot running...")
 app.run_polling()
+
