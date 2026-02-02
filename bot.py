@@ -1,7 +1,11 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    CallbackQueryHandler, ContextTypes, filters
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters,
 )
 from telegram.request import HTTPXRequest
 import os, sqlite3, uuid, asyncio
@@ -52,7 +56,7 @@ db.commit()
 active_batches = {}
 active_caption = {}
 
-# ================= HELPERS =================
+# ================= KEYBOARDS =================
 
 def join_keyboard():
     return InlineKeyboardMarkup([
@@ -64,9 +68,11 @@ def join_keyboard():
 
 def batch_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Add more", callback_data="add_more")],
+        [InlineKeyboardButton("➕ Add more files", callback_data="add_more")],
         [InlineKeyboardButton("✅ Done (get link)", callback_data="done")]
     ])
+
+# ================= HELPERS =================
 
 async def is_member(bot, user_id):
     try:
@@ -83,11 +89,13 @@ async def auto_delete(context, chat_id, msg_ids):
         except:
             pass
 
-# ================= START =================
+# ================= COMMANDS =================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("📤 Upload files with an optional caption.")
+        await update.message.reply_text(
+            "📤 Upload files with an optional caption."
+        )
         return
 
     batch_id = context.args[0]
@@ -101,43 +109,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await send_batch(update, context, batch_id)
-
-# ================= SEND FILES =================
-
-async def send_batch(update, context, batch_id):
-    cur.execute(
-        "SELECT channel_msg_id, caption FROM batches WHERE batch_id=?",
-        (batch_id,)
-    )
-    rows = cur.fetchall()
-
-    if not rows:
-        await update.message.reply_text("❌ Files not found.")
-        return
-
-    cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
-    cur.execute("UPDATE stats SET downloads = downloads + 1 WHERE batch_id=?", (batch_id,))
-    db.commit()
-
-    warn = await update.message.reply_text(
-        "⚠️ Please save or forward the files.\n⏳ Auto-delete after 10 minutes."
-    )
-    msg_ids = [warn.message_id]
-
-    for msg_id, caption in rows:
-        m = await context.bot.copy_message(
-            chat_id=update.effective_chat.id,
-            from_chat_id=STORAGE_CHANNEL_ID,
-            message_id=msg_id,
-            caption=caption
-        )
-        msg_ids.append(m.message_id)
-
-    context.application.create_task(
-        auto_delete(context, update.effective_chat.id, msg_ids)
-    )
-
-# ================= STATS =================
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -183,6 +154,44 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
+# ================= FILE SENDING =================
+
+async def send_batch(update, context, batch_id):
+    cur.execute(
+        "SELECT channel_msg_id, caption FROM batches WHERE batch_id=?",
+        (batch_id,)
+    )
+    rows = cur.fetchall()
+
+    if not rows:
+        await update.message.reply_text("❌ Files not found.")
+        return
+
+    cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
+    cur.execute(
+        "UPDATE stats SET downloads = downloads + 1 WHERE batch_id=?",
+        (batch_id,)
+    )
+    db.commit()
+
+    warn = await update.message.reply_text(
+        "⚠️ Please save or forward the files.\n⏳ Auto-delete after 10 minutes."
+    )
+    msg_ids = [warn.message_id]
+
+    for msg_id, caption in rows:
+        m = await context.bot.copy_message(
+            chat_id=update.effective_chat.id,
+            from_chat_id=STORAGE_CHANNEL_ID,
+            message_id=msg_id,
+            caption=caption
+        )
+        msg_ids.append(m.message_id)
+
+    context.application.create_task(
+        auto_delete(context, update.effective_chat.id, msg_ids)
+    )
+
 # ================= CALLBACKS =================
 
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -197,7 +206,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop("pending", None)
         else:
             await q.message.reply_text(
-                "❌ You haven't joined the channel yet baby.",
+                "❌ You haven't joined the channel yet.",
                 reply_markup=join_keyboard()
             )
         return
@@ -270,6 +279,6 @@ app.add_handler(
         handle_file
     )
 )
+
 print("Bot running...")
 app.run_polling()
-
