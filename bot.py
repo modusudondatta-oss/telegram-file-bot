@@ -1,21 +1,14 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    filters,
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    CallbackQueryHandler, ContextTypes, filters
 )
 from telegram.request import HTTPXRequest
-
-import os
-import sqlite3
-import uuid
-import asyncio
+import os, sqlite3, uuid, asyncio
 
 # ================= CONFIG =================
-TOKEN = os.getenv("BOT_TOKEN")
+
+TOKEN = os.getenv("BOT_TOKEN") 
 BOT_USERNAME = "hcjvkvkguf_bot"
 
 ALLOWED_UPLOADERS = [8295342154, 7025490921]
@@ -24,15 +17,17 @@ ALLOWED_UPLOADERS = [8295342154, 7025490921]
 FORCE_CHANNEL = "test1234521221412"
 FORCE_CHANNEL_URL = "https://t.me/test1234521221412"
 
-# 📢 PRIVATE STORAGE CHANNEL
+# 📢 PRIVATE STORAGE CHANNEL (REPLACE THIS)
 STORAGE_CHANNEL_ID = -1003323683630
 
 AUTO_DELETE_SECONDS = 20 * 60
+
 # =========================================
 
 request = HTTPXRequest(connect_timeout=20, read_timeout=20)
 
 # ================= DATABASE =================
+
 db = sqlite3.connect("files.db", check_same_thread=False)
 cur = db.cursor()
 
@@ -57,18 +52,19 @@ active_batches = {}   # user_id -> list of channel_msg_id
 active_caption = {}   # user_id -> caption
 
 # ================= HELPERS =================
+
 def join_keyboard():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("Join Only Hub", url=FORCE_CHANNEL_URL),
-            InlineKeyboardButton("✅already joined bro", callback_data="check_join")
+            InlineKeyboardButton("🔗 Join Channel", url=FORCE_CHANNEL_URL),
+            InlineKeyboardButton("✅ I already joined", callback_data="check_join")
         ]
     ])
 
 def batch_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕", callback_data="add_more")],
-        [InlineKeyboardButton("✅ Done", callback_data="done")]
+        [InlineKeyboardButton("➕ Add more files", callback_data="add_more")],
+        [InlineKeyboardButton("✅ Done (get link)", callback_data="done")]
     ])
 
 async def is_member(bot, user_id):
@@ -87,9 +83,10 @@ async def auto_delete(context, chat_id, msg_ids):
             pass
 
 # ================= START =================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("📤 Upload files please .")
+        await update.message.reply_text("📤 Upload files and add caption.")
         return
 
     batch_id = context.args[0]
@@ -105,6 +102,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_batch(update, context, batch_id)
 
 # ================= SEND FILES =================
+
 async def send_batch(update, context, batch_id):
     cur.execute(
         "SELECT channel_msg_id, caption FROM batches WHERE batch_id=?",
@@ -113,17 +111,16 @@ async def send_batch(update, context, batch_id):
     rows = cur.fetchall()
 
     if not rows:
-        await update.message.reply_text("❌ Files not found in database.")
+        await update.message.reply_text("❌ Files not found.")
         return
 
     cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
-    cur.execute("UPDATE stats SET downloads = downloads + 1 WHERE batch_id=?", (batch_id,))
+    cur.execute("UPDATE stats SET downloads=downloads+1 WHERE batch_id=?", (batch_id,))
     db.commit()
 
     warn = await update.message.reply_text(
         "⚠️ Save or forward files.\n⏳ Auto-delete after 20 minutes."
     )
-
     msg_ids = [warn.message_id]
 
     for msg_id, caption in rows:
@@ -140,10 +137,10 @@ async def send_batch(update, context, batch_id):
     )
 
 # ================= CALLBACKS =================
+
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-
     uid = q.from_user.id
 
     if q.data == "check_join":
@@ -190,13 +187,13 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text(f"✅ Lifetime link:\n{link}")
 
 # ================= FILE UPLOAD =================
+
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid not in ALLOWED_UPLOADERS:
         return
 
     msg = update.message
-
     if msg.caption:
         active_caption[uid] = msg.caption
 
@@ -214,6 +211,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ================= RUN =================
+
 app = ApplicationBuilder().token(TOKEN).request(request).build()
 
 app.add_handler(CommandHandler("start", start))
