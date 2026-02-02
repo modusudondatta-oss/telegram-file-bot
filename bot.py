@@ -8,15 +8,18 @@ import os, sqlite3, uuid, asyncio
 
 # ================= CONFIG =================
 
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN") 
 BOT_USERNAME = "hcjvkvkguf_bot"
 
 ALLOWED_UPLOADERS = [8295342154, 7025490921]
 
+# 🔐 FORCE JOIN CHANNEL
 FORCE_CHANNEL = "test1234521221412"
 FORCE_CHANNEL_URL = "https://t.me/test1234521221412"
 
+# 📢 PRIVATE STORAGE CHANNEL (REPLACE THIS)
 STORAGE_CHANNEL_ID = -1003323683630
+
 AUTO_DELETE_SECONDS = 20 * 60
 
 # =========================================
@@ -45,10 +48,10 @@ CREATE TABLE IF NOT EXISTS stats (
 
 db.commit()
 
-active_batches = {}
-active_caption = {}
+active_batches = {}   # user_id -> list of channel_msg_id
+active_caption = {}   # user_id -> caption
 
-# ================= KEYBOARDS =================
+# ================= HELPERS =================
 
 def join_keyboard():
     return InlineKeyboardMarkup([
@@ -58,14 +61,11 @@ def join_keyboard():
         ]
     ])
 
-def uploader_keyboard():
+def batch_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ Add more files", callback_data="add_more")],
-        [InlineKeyboardButton("✅ Done (get link)", callback_data="done")],
-        [InlineKeyboardButton("📊 Stats", callback_data="show_stats")]
+        [InlineKeyboardButton("✅ Done (get link)", callback_data="done")]
     ])
-
-# ================= HELPERS =================
 
 async def is_member(bot, user_id):
     try:
@@ -86,14 +86,14 @@ async def auto_delete(context, chat_id, msg_ids):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("📤 Upload files.")
+        await update.message.reply_text("📤 Upload files and add caption.")
         return
 
     batch_id = context.args[0]
 
     if not await is_member(context.bot, update.effective_user.id):
         await update.message.reply_text(
-            "🔒 Join the channel first.",
+            "🔒 Join the channel to access files.",
             reply_markup=join_keyboard()
         )
         context.user_data["pending"] = batch_id
@@ -115,11 +115,11 @@ async def send_batch(update, context, batch_id):
         return
 
     cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
-    cur.execute("UPDATE stats SET downloads = downloads + 1 WHERE batch_id=?", (batch_id,))
+    cur.execute("UPDATE stats SET downloads=downloads+1 WHERE batch_id=?", (batch_id,))
     db.commit()
 
     warn = await update.message.reply_text(
-        "⚠️ Files will auto-delete in 20 minutes."
+        "⚠️ Save or forward files.\n⏳ Auto-delete after 20 minutes."
     )
     msg_ids = [warn.message_id]
 
@@ -147,10 +147,15 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         batch_id = context.user_data.get("pending")
         if await is_member(context.bot, uid):
             await send_batch(q, context, batch_id)
+            context.user_data.pop("pending", None)
+        else:
+            await q.message.reply_text(
+                "❌ You haven't joined yet.",
+                reply_markup=join_keyboard()
+            )
         return
 
     if uid not in ALLOWED_UPLOADERS:
-        await q.message.reply_text("❌ Not allowed.")
         return
 
     if q.data == "add_more":
@@ -179,26 +184,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         active_caption.pop(uid, None)
 
         link = f"https://t.me/{BOT_USERNAME}?start={batch_id}"
-        await q.message.reply_text(
-            f"✅ Link created:\n{link}",
-            reply_markup=uploader_keyboard()
-        )
-        return
-
-    if q.data == "show_stats":
-        cur.execute("SELECT batch_id, downloads FROM stats ORDER BY downloads DESC")
-        rows = cur.fetchall()
-
-        if not rows:
-            await q.message.reply_text("📊 No stats yet.")
-            return
-
-        text = "📊 Download Stats\n\n"
-        for b, d in rows:
-            text += f"{b} → {d}\n"
-
-        await q.message.reply_text(text)
-        return
+        await q.message.reply_text(f"✅ Lifetime link:\n{link}")
 
 # ================= FILE UPLOAD =================
 
@@ -221,7 +207,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await msg.reply_text(
         f"📎 Stored\n📦 Total: {len(active_batches[uid])}",
-        reply_markup=uploader_keyboard()
+        reply_markup=batch_keyboard()
     )
 
 # ================= RUN =================
@@ -230,12 +216,14 @@ app = ApplicationBuilder().token(TOKEN).request(request).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(callbacks))
-app.add_handler(
-    MessageHandler(
-        filters.Document.ALL | filters.Video.ALL | filters.Audio.ALL | filters.PHOTO,
-        handle_file
-    )
-)
+app.add_handler(MessageHandler(filters.ALL, handle_file))
 
 print("Bot running...")
 app.run_polling()
+
+
+
+
+
+
+dont change or edit anything . just give me this in code format . so i can copy and paste it
