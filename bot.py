@@ -8,7 +8,7 @@ import os, sqlite3, uuid, asyncio
 
 # ================= CONFIG =================
 
-TOKEN = os.getenv("BOT_TOKEN") 
+TOKEN = os.getenv("BOT_TOKEN")
 BOT_USERNAME = "hcjvkvkguf_bot"
 
 ALLOWED_UPLOADERS = [8295342154, 7025490921]
@@ -17,7 +17,7 @@ ALLOWED_UPLOADERS = [8295342154, 7025490921]
 FORCE_CHANNEL = "test1234521221412"
 FORCE_CHANNEL_URL = "https://t.me/test1234521221412"
 
-# 📢 PRIVATE STORAGE CHANNEL (REPLACE THIS)
+# 📢 PRIVATE STORAGE CHANNEL
 STORAGE_CHANNEL_ID = -1003323683630
 
 AUTO_DELETE_SECONDS = 20 * 60
@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS stats (
 
 db.commit()
 
-active_batches = {}   # user_id -> list of channel_msg_id
-active_caption = {}   # user_id -> caption
+active_batches = {}
+active_caption = {}
 
 # ================= HELPERS =================
 
@@ -115,7 +115,7 @@ async def send_batch(update, context, batch_id):
         return
 
     cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
-    cur.execute("UPDATE stats SET downloads=downloads+1 WHERE batch_id=?", (batch_id,))
+    cur.execute("UPDATE stats SET downloads = downloads + 1 WHERE batch_id=?", (batch_id,))
     db.commit()
 
     warn = await update.message.reply_text(
@@ -209,6 +209,9 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📎 Stored\n📦 Total: {len(active_batches[uid])}",
         reply_markup=batch_keyboard()
     )
+
+# ================= STATS =================
+
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid not in ALLOWED_UPLOADERS:
@@ -222,23 +225,25 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📊 No stats available yet.")
         return
 
-    text = "📊 **Download Stats**\n\n"
+    text = "📊 Download Stats\n\n"
     for batch_id, downloads in rows:
-        text += f"🔗 `{batch_id}` → {downloads} downloads\n"
+        text += f"{batch_id} → {downloads} downloads\n"
 
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await update.message.reply_text(text)
 
 # ================= RUN =================
 
 app = ApplicationBuilder().token(TOKEN).request(request).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(callbacks))
-app.add_handler(MessageHandler(filters.ALL, handle_file))
 app.add_handler(CommandHandler("stats", stats))
+app.add_handler(CallbackQueryHandler(callbacks))
+app.add_handler(
+    MessageHandler(
+        filters.Document.ALL | filters.Video.ALL | filters.Audio.ALL | filters.PHOTO,
+        handle_file
+    )
+)
 
 print("Bot running...")
 app.run_polling()
-
-
-
