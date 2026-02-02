@@ -8,21 +8,21 @@ import os, sqlite3, uuid, asyncio
 
 # ================= CONFIG =================
 
-TOKEN = os.getenv("BOT_TOKEN") 
+TOKEN = os.getenv("BOT_TOKEN")
 BOT_USERNAME = "hcjvkvkguf_bot"
 
 ALLOWED_UPLOADERS = [8295342154, 7025490921]
 
-# 🔐 FORCE JOIN CHANNEL
 FORCE_CHANNEL = "test1234521221412"
 FORCE_CHANNEL_URL = "https://t.me/test1234521221412"
 
-# 📢 PRIVATE STORAGE CHANNEL (REPLACE THIS)
 STORAGE_CHANNEL_ID = -1003323683630
-
 AUTO_DELETE_SECONDS = 20 * 60
 
 # =========================================
+
+if not TOKEN:
+    raise RuntimeError("BOT_TOKEN is not set")
 
 request = HTTPXRequest(connect_timeout=20, read_timeout=20)
 
@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS stats (
 
 db.commit()
 
-active_batches = {}   # user_id -> list of channel_msg_id
-active_caption = {}   # user_id -> caption
+active_batches = {}
+active_caption = {}
 
 # ================= HELPERS =================
 
@@ -136,6 +136,32 @@ async def send_batch(update, context, batch_id):
         auto_delete(context, update.effective_chat.id, msg_ids)
     )
 
+# ================= STATS COMMAND =================
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid not in ALLOWED_UPLOADERS:
+        await update.message.reply_text("⛔ You are not allowed to view stats.")
+        return
+
+    cur.execute("SELECT COUNT(DISTINCT batch_id) FROM batches")
+    total_links = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM batches")
+    total_files = cur.fetchone()[0]
+
+    cur.execute("SELECT SUM(downloads) FROM stats")
+    total_downloads = cur.fetchone()[0] or 0
+
+    await update.message.reply_text(
+        "📊 **Bot Statistics**\n\n"
+        f"🔗 Total links: {total_links}\n"
+        f"📁 Total files: {total_files}\n"
+        f"⬇️ Total downloads: {total_downloads}\n"
+        f"👤 Uploaders: {len(ALLOWED_UPLOADERS)}",
+        parse_mode="Markdown"
+    )
+
 # ================= CALLBACKS =================
 
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -215,15 +241,9 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TOKEN).request(request).build()
 
 app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("stats", stats))
 app.add_handler(CallbackQueryHandler(callbacks))
 app.add_handler(MessageHandler(filters.ALL, handle_file))
 
 print("Bot running...")
 app.run_polling()
-
-
-
-
-
-
-dont change or edit anything . just give me this in code format . so i can copy and paste it
