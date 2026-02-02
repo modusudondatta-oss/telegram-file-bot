@@ -60,15 +60,15 @@ active_caption = {}   # user_id -> caption
 def join_keyboard():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🔗 Join Channel", url=FORCE_CHANNEL_URL),
-            InlineKeyboardButton("✅ I already joined", callback_data="check_join")
+            InlineKeyboardButton("Join Only Hub", url=FORCE_CHANNEL_URL),
+            InlineKeyboardButton("✅already joined bro", callback_data="check_join")
         ]
     ])
 
 def batch_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Add more files", callback_data="add_more")],
-        [InlineKeyboardButton("✅ Done (get link)", callback_data="done")]
+        [InlineKeyboardButton("➕", callback_data="add_more")],
+        [InlineKeyboardButton("✅ Done", callback_data="done")]
     ])
 
 async def is_member(bot, user_id):
@@ -89,7 +89,7 @@ async def auto_delete(context, chat_id, msg_ids):
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("📤 Upload files and add a caption.")
+        await update.message.reply_text("📤 Upload files please .")
         return
 
     batch_id = context.args[0]
@@ -113,7 +113,7 @@ async def send_batch(update, context, batch_id):
     rows = cur.fetchall()
 
     if not rows:
-        await update.message.reply_text("❌ Files not found.")
+        await update.message.reply_text("❌ Files not found in database.")
         return
 
     cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
@@ -222,3 +222,4 @@ app.add_handler(MessageHandler(filters.ALL, handle_file))
 
 print("Bot running...")
 app.run_polling()
+
