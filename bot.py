@@ -209,6 +209,24 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📎 Stored\n📦 Total: {len(active_batches[uid])}",
         reply_markup=batch_keyboard()
     )
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid not in ALLOWED_UPLOADERS:
+        await update.message.reply_text("❌ You are not allowed to view stats.")
+        return
+
+    cur.execute("SELECT batch_id, downloads FROM stats ORDER BY downloads DESC")
+    rows = cur.fetchall()
+
+    if not rows:
+        await update.message.reply_text("📊 No stats available yet.")
+        return
+
+    text = "📊 **Download Stats**\n\n"
+    for batch_id, downloads in rows:
+        text += f"🔗 `{batch_id}` → {downloads} downloads\n"
+
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 # ================= RUN =================
 
@@ -220,4 +238,5 @@ app.add_handler(MessageHandler(filters.ALL, handle_file))
 
 print("Bot running...")
 app.run_polling()
+
 
