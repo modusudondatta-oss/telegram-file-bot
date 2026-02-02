@@ -1,8 +1,4 @@
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -44,7 +40,7 @@ CREATE TABLE IF NOT EXISTS batches (
 cur.execute("""
 CREATE TABLE IF NOT EXISTS stats (
     batch_id TEXT PRIMARY KEY,
-    total_downloads INTEGER DEFAULT 0
+    total INTEGER DEFAULT 0
 )
 """)
 
@@ -57,7 +53,6 @@ CREATE TABLE IF NOT EXISTS unique_users (
 """)
 
 cur.execute("CREATE INDEX IF NOT EXISTS idx_batches ON batches(batch_id)")
-cur.execute("CREATE INDEX IF NOT EXISTS idx_users ON unique_users(batch_id)")
 db.commit()
 
 active_batches = {}
@@ -67,18 +62,18 @@ active_caption = {}
 def join_keyboard():
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("🔗 Join Channel", url=FORCE_CHANNEL_URL),
-        InlineKeyboardButton("✅ I already joined", callback_data="check_join")
+        InlineKeyboardButton("✅ I joined", callback_data="check_join")
     ]])
 
 def batch_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Add more files", callback_data="add_more")],
-        [InlineKeyboardButton("✅ Done (get link)", callback_data="done")]
+        [InlineKeyboardButton("➕ Add more", callback_data="add_more")],
+        [InlineKeyboardButton("✅ Done", callback_data="done")]
     ])
 
 def stats_keyboard(batch_id):
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("📊 View Stats", callback_data=f"stats:{batch_id}")
+        InlineKeyboardButton("📊 Stats", callback_data=f"stats:{batch_id}")
     ]])
 
 # ================= HELPERS =================
@@ -97,18 +92,24 @@ async def auto_delete(context, chat_id, msg_ids):
         except:
             pass
 
+def get_reply_target(update):
+    if update.message:
+        return update.message
+    return update.callback_query.message
+
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("📤 Upload files and add caption.")
+        await update.message.reply_text("📤 Upload files to create a link.")
         return
 
     batch_id = context.args[0]
+    user_id = update.effective_user.id
 
-    if not await is_member(context.bot, update.effective_user.id):
+    if not await is_member(context.bot, user_id):
         context.user_data["pending"] = batch_id
         await update.message.reply_text(
-            "🔒 Join the channel to access files.",
+            "🔒 Join channel to access files",
             reply_markup=join_keyboard()
         )
         return
@@ -117,6 +118,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= SEND FILES =================
 async def send_batch(update, context, batch_id):
+    chat = get_reply_target(update)
     user_id = update.effective_user.id
 
     cur.execute(
@@ -126,34 +128,26 @@ async def send_batch(update, context, batch_id):
     rows = cur.fetchall()
 
     if not rows:
-        await update.message.reply_text("❌ Files not found.")
+        await chat.reply_text("❌ Files not found.")
         return
 
-    # UNIQUE USER COUNT
+    # stats
+    cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
+    cur.execute("UPDATE stats SET total=total+1 WHERE batch_id=?", (batch_id,))
     cur.execute(
         "INSERT OR IGNORE INTO unique_users VALUES (?,?)",
         (batch_id, user_id)
     )
-
-    # TOTAL DOWNLOAD COUNT
-    cur.execute(
-        "INSERT OR IGNORE INTO stats VALUES (?,0)",
-        (batch_id,)
-    )
-    cur.execute(
-        "UPDATE stats SET total_downloads = total_downloads + 1 WHERE batch_id=?",
-        (batch_id,)
-    )
     db.commit()
 
-    warn = await update.message.reply_text(
-        "⚠️ Save or forward files.\n⏳ Auto-delete after 20 minutes."
+    warn = await chat.reply_text(
+        "⚠️ Save files\n⏳ Auto delete in 20 minutes"
     )
     msg_ids = [warn.message_id]
 
     for msg_id, caption in rows:
         m = await context.bot.copy_message(
-            chat_id=update.effective_chat.id,
+            chat_id=chat.chat_id,
             from_chat_id=STORAGE_CHANNEL_ID,
             message_id=msg_id,
             caption=caption
@@ -161,7 +155,7 @@ async def send_batch(update, context, batch_id):
         msg_ids.append(m.message_id)
 
     context.application.create_task(
-        auto_delete(context, update.effective_chat.id, msg_ids)
+        auto_delete(context, chat.chat_id, msg_ids)
     )
 
 # ================= CALLBACKS =================
@@ -170,29 +164,15 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     uid = q.from_user.id
 
-    if q.data == "check_join":
-        batch_id = context.user_data.get("pending")
-        if await is_member(context.bot, uid):
-            await send_batch(q, context, batch_id)
-            context.user_data.pop("pending", None)
-        else:
-            await q.message.reply_text(
-                "❌ You haven't joined yet.",
-                reply_markup=join_keyboard()
-            )
-        return
-
+    # STATS BUTTON
     if q.data.startswith("stats:"):
         if uid not in ALLOWED_UPLOADERS:
-            await q.message.reply_text("❌ Not allowed.")
+            await q.message.reply_text("❌ Not allowed")
             return
 
         batch_id = q.data.split(":")[1]
 
-        cur.execute(
-            "SELECT total_downloads FROM stats WHERE batch_id=?",
-            (batch_id,)
-        )
+        cur.execute("SELECT total FROM stats WHERE batch_id=?", (batch_id,))
         total = cur.fetchone()[0]
 
         cur.execute(
@@ -202,24 +182,37 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         unique = cur.fetchone()[0]
 
         await q.message.reply_text(
-            f"📊 **Batch Stats**\n\n"
-            f"👁 Total Opens: {total}\n"
-            f"👤 Unique Users: {unique}",
-            parse_mode="Markdown"
+            f"📊 Stats\n\n"
+            f"👁 Opens: {total}\n"
+            f"👤 Unique users: {unique}"
         )
         return
 
+    # FORCE JOIN
+    if q.data == "check_join":
+        batch_id = context.user_data.get("pending")
+        if await is_member(context.bot, uid):
+            await send_batch(update, context, batch_id)
+            context.user_data.pop("pending", None)
+        else:
+            await q.message.reply_text(
+                "❌ You haven't joined",
+                reply_markup=join_keyboard()
+            )
+        return
+
+    # UPLOADER ONLY
     if uid not in ALLOWED_UPLOADERS:
         return
 
     if q.data == "add_more":
-        await q.message.reply_text("➕ Send more files.")
+        await q.message.reply_text("➕ Send more files")
         return
 
     if q.data == "done":
         files = active_batches.get(uid)
         if not files:
-            await q.message.reply_text("❌ No files.")
+            await q.message.reply_text("❌ No files")
             return
 
         batch_id = uuid.uuid4().hex[:10]
@@ -239,7 +232,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         link = f"https://t.me/{BOT_USERNAME}?start={batch_id}"
         await q.message.reply_text(
-            f"✅ Lifetime link:\n{link}",
+            f"✅ Link created:\n{link}",
             reply_markup=stats_keyboard(batch_id)
         )
 
@@ -262,7 +255,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_batches.setdefault(uid, []).append(sent.message_id)
 
     await msg.reply_text(
-        f"📎 Stored\n📦 Total: {len(active_batches[uid])}",
+        f"📎 Stored ({len(active_batches[uid])})",
         reply_markup=batch_keyboard()
     )
 
@@ -271,10 +264,12 @@ app = ApplicationBuilder().token(TOKEN).request(request).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(callbacks))
-app.add_handler(MessageHandler(filters.ALL, handle_file))
+app.add_handler(
+    MessageHandler(
+        filters.Document.ALL | filters.VIDEO | filters.AUDIO | filters.PHOTO,
+        handle_file
+    )
+)
 
 print("Bot running...")
 app.run_polling()
-
-
-
