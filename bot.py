@@ -58,16 +58,12 @@ def join_keyboard():
         ]
     ])
 
-def batch_keyboard(uploader=False):
-    buttons = [
+def uploader_keyboard():
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ Add more files", callback_data="add_more")],
-        [InlineKeyboardButton("✅ Done (get link)", callback_data="done")]
-    ]
-    if uploader:
-        buttons.append(
-            [InlineKeyboardButton("📊 Stats", callback_data="stats_inline")]
-        )
-    return InlineKeyboardMarkup(buttons)
+        [InlineKeyboardButton("✅ Done (get link)", callback_data="done")],
+        [InlineKeyboardButton("📊 Stats", callback_data="show_stats")]
+    ])
 
 # ================= HELPERS =================
 
@@ -90,14 +86,14 @@ async def auto_delete(context, chat_id, msg_ids):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("📤 Upload files and add caption.")
+        await update.message.reply_text("📤 Upload files.")
         return
 
     batch_id = context.args[0]
 
     if not await is_member(context.bot, update.effective_user.id):
         await update.message.reply_text(
-            "🔒 Join the channel to access files.",
+            "🔒 Join the channel first.",
             reply_markup=join_keyboard()
         )
         context.user_data["pending"] = batch_id
@@ -119,14 +115,11 @@ async def send_batch(update, context, batch_id):
         return
 
     cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
-    cur.execute(
-        "UPDATE stats SET downloads = downloads + 1 WHERE batch_id=?",
-        (batch_id,)
-    )
+    cur.execute("UPDATE stats SET downloads = downloads + 1 WHERE batch_id=?", (batch_id,))
     db.commit()
 
     warn = await update.message.reply_text(
-        "⚠️ Save or forward files.\n⏳ Auto-delete after 20 minutes."
+        "⚠️ Files will auto-delete in 20 minutes."
     )
     msg_ids = [warn.message_id]
 
@@ -154,36 +147,10 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         batch_id = context.user_data.get("pending")
         if await is_member(context.bot, uid):
             await send_batch(q, context, batch_id)
-            context.user_data.pop("pending", None)
-        else:
-            await q.message.reply_text(
-                "❌ You haven't joined yet.",
-                reply_markup=join_keyboard()
-            )
-        return
-
-    if q.data == "stats_inline":
-        if uid not in ALLOWED_UPLOADERS:
-            await q.message.reply_text("❌ Not allowed.")
-            return
-
-        cur.execute(
-            "SELECT batch_id, downloads FROM stats ORDER BY downloads DESC"
-        )
-        rows = cur.fetchall()
-
-        if not rows:
-            await q.message.reply_text("📊 No stats yet.")
-            return
-
-        text = "📊 Download Stats\n\n"
-        for batch_id, downloads in rows:
-            text += f"{batch_id} → {downloads} downloads\n"
-
-        await q.message.reply_text(text)
         return
 
     if uid not in ALLOWED_UPLOADERS:
+        await q.message.reply_text("❌ Not allowed.")
         return
 
     if q.data == "add_more":
@@ -213,9 +180,25 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         link = f"https://t.me/{BOT_USERNAME}?start={batch_id}"
         await q.message.reply_text(
-            f"✅ Lifetime link:\n{link}",
-            reply_markup=batch_keyboard(uploader=True)
+            f"✅ Link created:\n{link}",
+            reply_markup=uploader_keyboard()
         )
+        return
+
+    if q.data == "show_stats":
+        cur.execute("SELECT batch_id, downloads FROM stats ORDER BY downloads DESC")
+        rows = cur.fetchall()
+
+        if not rows:
+            await q.message.reply_text("📊 No stats yet.")
+            return
+
+        text = "📊 Download Stats\n\n"
+        for b, d in rows:
+            text += f"{b} → {d}\n"
+
+        await q.message.reply_text(text)
+        return
 
 # ================= FILE UPLOAD =================
 
@@ -238,7 +221,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await msg.reply_text(
         f"📎 Stored\n📦 Total: {len(active_batches[uid])}",
-        reply_markup=batch_keyboard(uploader=True)
+        reply_markup=uploader_keyboard()
     )
 
 # ================= RUN =================
