@@ -235,8 +235,10 @@ app = ApplicationBuilder().token(TOKEN).request(request).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(callbacks))
 app.add_handler(MessageHandler(filters.ALL, handle_file))
+app.add_handler(CommandHandler("stats", stats))
 
 print("Bot running...")
 app.run_polling()
+
 
 
