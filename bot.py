@@ -9,15 +9,15 @@ import os, sqlite3, uuid, asyncio
 # ================= CONFIG =================
 
 TOKEN = os.getenv("BOT_TOKEN")
-BOT_USERNAME = "hcjvkvkguf_bot"
+BOT_USERNAME = "OnlyHubServerBot"
 
 ALLOWED_UPLOADERS = [8295342154, 7025490921]
 
-FORCE_CHANNEL = "test1234521221412"
-FORCE_CHANNEL_URL = "https://t.me/test1234521221412"
+FORCE_CHANNEL = "only_hub69"
+FORCE_CHANNEL_URL = "https://t.me/only_hub69"
 
-STORAGE_CHANNEL_ID = -1003323683630
-AUTO_DELETE_SECONDS = 20 * 60
+STORAGE_CHANNEL_ID = -1003893001355
+AUTO_DELETE_SECONDS = 10 * 60
 
 # =========================================
 
@@ -56,14 +56,14 @@ active_caption = {}
 def join_keyboard():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🔗 Join Channel", url=FORCE_CHANNEL_URL),
-            InlineKeyboardButton("✅ I already joined", callback_data="check_join")
+            InlineKeyboardButton("JOIN OnlyHub", url=FORCE_CHANNEL_URL),
+            InlineKeyboardButton("✅already joined Bro", callback_data="check_join")
         ]
     ])
 
 def batch_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Add more files", callback_data="add_more")],
+        [InlineKeyboardButton("➕", callback_data="add_more")],
         [InlineKeyboardButton("✅ Done (get link)", callback_data="done")]
     ])
 
@@ -200,7 +200,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop("pending", None)
         else:
             await q.message.reply_text(
-                "❌ You haven't joined yet.",
+                "❌ You haven't joined yet Mad*rch*d.",
                 reply_markup=join_keyboard()
             )
         return
@@ -234,7 +234,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         active_caption.pop(uid, None)
 
         link = f"https://t.me/{BOT_USERNAME}?start={batch_id}"
-        await q.message.reply_text(f"✅ Lifetime link:\n{link}")
+        await q.message.reply_text(f"✅ Heres yoursfile link:\n{link}")
 
 # ================= FILE UPLOAD =================
 
@@ -271,4 +271,5 @@ app.add_handler(MessageHandler(filters.ALL, handle_file))
 
 print("Bot running...")
 app.run_polling()
+
 
