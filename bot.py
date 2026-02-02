@@ -17,7 +17,8 @@ FORCE_CHANNEL = "only_hub69"
 FORCE_CHANNEL_URL = "https://t.me/only_hub69"
 
 STORAGE_CHANNEL_ID = -1003893001355
-AUTO_DELETE_SECONDS = 10 * 60
+
+AUTO_DELETE_SECONDS = 10 * 60  # 10 minutes
 
 # =========================================
 
@@ -56,14 +57,14 @@ active_caption = {}
 def join_keyboard():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("JOIN OnlyHub", url=FORCE_CHANNEL_URL),
-            InlineKeyboardButton("✅already joined Bro", callback_data="check_join")
+            InlineKeyboardButton("🔗 Join OnlyHub", url=FORCE_CHANNEL_URL),
+            InlineKeyboardButton("✅ I already joined", callback_data="check_join")
         ]
     ])
 
 def batch_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕", callback_data="add_more")],
+        [InlineKeyboardButton("➕ Add more", callback_data="add_more")],
         [InlineKeyboardButton("✅ Done (get link)", callback_data="done")]
     ])
 
@@ -86,14 +87,14 @@ async def auto_delete(context, chat_id, msg_ids):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("📤 Upload files and add caption.")
+        await update.message.reply_text("📤 Upload files with an optional caption.")
         return
 
     batch_id = context.args[0]
 
     if not await is_member(context.bot, update.effective_user.id):
         await update.message.reply_text(
-            "🔒 Join the channel to access files.",
+            "🔒 Please join the channel to access files.",
             reply_markup=join_keyboard()
         )
         context.user_data["pending"] = batch_id
@@ -115,11 +116,11 @@ async def send_batch(update, context, batch_id):
         return
 
     cur.execute("INSERT OR IGNORE INTO stats VALUES (?,0)", (batch_id,))
-    cur.execute("UPDATE stats SET downloads=downloads+1 WHERE batch_id=?", (batch_id,))
+    cur.execute("UPDATE stats SET downloads = downloads + 1 WHERE batch_id=?", (batch_id,))
     db.commit()
 
     warn = await update.message.reply_text(
-        "⚠️ Save or forward files.\n⏳ Auto-delete after 20 minutes."
+        "⚠️ Please save or forward the files.\n⏳ Auto-delete after 10 minutes."
     )
     msg_ids = [warn.message_id]
 
@@ -136,7 +137,7 @@ async def send_batch(update, context, batch_id):
         auto_delete(context, update.effective_chat.id, msg_ids)
     )
 
-# ================= STATS COMMAND =================
+# ================= STATS =================
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -144,7 +145,6 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ You are not allowed to view stats.")
         return
 
-    # Overall stats
     cur.execute("SELECT COUNT(DISTINCT batch_id) FROM batches")
     total_links = cur.fetchone()[0]
 
@@ -162,18 +162,15 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "— **Per Link** —\n"
     )
 
-    # Per-link stats
     cur.execute("""
-        SELECT s.batch_id,
-               s.downloads,
-               COUNT(b.channel_msg_id) as file_count
+        SELECT s.batch_id, s.downloads, COUNT(b.channel_msg_id)
         FROM stats s
         LEFT JOIN batches b ON s.batch_id = b.batch_id
         GROUP BY s.batch_id
         ORDER BY s.downloads DESC
     """)
-    rows = cur.fetchall()
 
+    rows = cur.fetchall()
     if not rows:
         text += "No downloads yet."
     else:
@@ -200,7 +197,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop("pending", None)
         else:
             await q.message.reply_text(
-                "❌ You haven't joined yet Mad*rch*d.",
+                "❌ You haven't joined the channel yet baby.",
                 reply_markup=join_keyboard()
             )
         return
@@ -234,7 +231,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         active_caption.pop(uid, None)
 
         link = f"https://t.me/{BOT_USERNAME}?start={batch_id}"
-        await q.message.reply_text(f"✅ Heres yoursfile link:\n{link}")
+        await q.message.reply_text(f"✅ Here is your file link:\n{link}")
 
 # ================= FILE UPLOAD =================
 
@@ -256,7 +253,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_batches.setdefault(uid, []).append(sent.message_id)
 
     await msg.reply_text(
-        f"📎 Stored\n📦 Total: {len(active_batches[uid])}",
+        f"📎 Stored\n📦 Total files: {len(active_batches[uid])}",
         reply_markup=batch_keyboard()
     )
 
@@ -267,9 +264,12 @@ app = ApplicationBuilder().token(TOKEN).request(request).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("stats", stats))
 app.add_handler(CallbackQueryHandler(callbacks))
-app.add_handler(MessageHandler(filters.ALL, handle_file))
+app.add_handler(
+    MessageHandler(
+        filters.Document | filters.Video | filters.Audio | filters.Photo,
+        handle_file
+    )
+)
 
 print("Bot running...")
 app.run_polling()
-
-
